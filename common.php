@@ -2,6 +2,7 @@
 
 require_once __DIR__ . "/open_mode_policy.php";  // Pure Open Mode state/prompt policy (unit-testable without CHIM bootstrap)
 require_once __DIR__ . "/scene_role_policy.php"; // Pure SexLab victim/aggressor role policy
+require_once __DIR__ . "/reldyn_consent_policy.php"; // LOCAL (branch reldyn-consent): RelDyn's consent decision supersedes ours when RelDyn is installed; inert without it
 require_once __DIR__ . "/../../lib/chat_helper_functions.php";
 require_once __DIR__ . "/nsfw_data.php";  // NsfwNpcData class - MUST be loaded first (functions.php uses it on include)
 require_once __DIR__ . "/helpers.php";  // Helper functions (isSexDisposalEnabled, etc.) - separated from function definitions
@@ -1988,6 +1989,15 @@ function aiagentNsfwRelTypeSexEligible($npcName) {
     $npcName = trim((string)$npcName);
     if ($npcName === '') { return true; }
     if (function_exists('aiagentNsfwIsProtectedNpc') && aiagentNsfwIsProtectedNpc($npcName)) { return false; }
+    // RELDYN CONSENT (LOCAL hook, branch reldyn-consent; Ken 2026-10-01: Sharmat handles the "during", RelDyn decides whether it gets there
+    // and its decision supersedes ours). When RelDyn is installed and has published its decision for this NPC, that decision is the answer:
+    // no => not eligible (every consumer of this gate already turns that into stripped tools, a kind decline and no held acceptance);
+    // yes => the rel-type grid, affinity floors and open mode are not asked again (orientation and the affair floor, which RelDyn does not
+    // read, still can say no). Returns null without RelDyn or without a decision, and the gate below runs exactly as before.
+    if (function_exists('aiagentNsfwRelDynConsentEligibility')) {
+        $relDynEligible = aiagentNsfwRelDynConsentEligibility($npcName);
+        if ($relDynEligible !== null) { return $relDynEligible; }
+    }
     // OPEN MODE: rel types and affinity floors do not gate (children stay gated by their own frame).
     if (aiagentNsfwOpenMode() && !(function_exists('aiagentNsfwIsChildNpc') && aiagentNsfwIsChildNpc($npcName))) { return true; }
     // PROMISCUOUS (SLUT) MARK: eligibility is affinity-tier driven from Acquaintance (6) up - the

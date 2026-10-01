@@ -1493,6 +1493,7 @@ $openModeSceneEvent = in_array($gameRequest[0] ?? '', [
     'ext_nsfw_npc_scene', 'ext_nsfw_npc_invite', 'ext_nsfw_npc_orgasm'
 ], true);
 if (!$isPillowTalkMode
+    && !(function_exists('aiagentNsfwRelDynRefuses') && aiagentNsfwRelDynRefuses($actorName))   // RelDyn's no is not auto-accepted (LOCAL hook, branch reldyn-consent)
     && function_exists('aiagentNsfwShouldAutoAcceptOpenModePlayerScene')
     && aiagentNsfwShouldAutoAcceptOpenModePlayerScene(
         $intimacyStatus,

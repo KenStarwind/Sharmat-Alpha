@@ -523,6 +523,16 @@ class NsfwRelationship {
                     && (!function_exists('aiagentNsfwOrientationAllowsPlayer') || aiagentNsfwOrientationAllowsPlayer($npcName));
             }
 
+            // RELDYN CONSENT (LOCAL hook, branch reldyn-consent): when RelDyn has published its decision for this NPC it IS the answer, the
+            // same one aiagentNsfwRelTypeSexEligible returns, so the prompt and the mechanical gate never disagree. Null without RelDyn.
+            $relDynOv = (function_exists('aiagentNsfwRelDynConsentDecision') && empty($isNpcPromptContext))
+                ? aiagentNsfwRelDynConsentDecision($npcName) : null;
+            if ($relDynOv !== null) {
+                $typeIsEligibleOv = function_exists('aiagentNsfwRelDynConsentEligibility')
+                    ? (aiagentNsfwRelDynConsentEligibility($npcName) !== false)
+                    : !empty($relDynOv['allow']);
+            }
+
             if (!$typeIsEligibleOv) {
                 $tierTag = trim((string)($prompts['relationship_overhead_tier_tag']
                     ?? "Your current relationship tier with #PLAYER_NAME# is #TIER# (#AFFINITY# affinity)."));
@@ -548,8 +558,13 @@ class NsfwRelationship {
             if (!$typeIsEligibleOv) {
                 $typeRefusal = self::getRelTypeGateRefusal($npcName, $partnerName);
                 $typeRefusal = (is_string($typeRefusal) && trim($typeRefusal) !== '') ? trim($typeRefusal) : "Your relationship with #PLAYER_NAME# is not a sexual one.";
+                // RelDyn's own words for why (feelings, the NPC's name, no pronoun) replace the generic relationship-type line
+                if ($relDynOv !== null && ($relDynOv['felt'] ?? '') !== '') { $typeRefusal = $relDynOv['felt']; }
                 $prompt .= "\n" . $typeRefusal
                     . " You are NOT sexually available to #PLAYER_NAME#. If they make a sexual advance, kindly and in character decline it and use the RefuseSex action.";
+            } elseif ($relDynOv !== null && ($relDynOv['felt'] ?? '') !== '') {
+                // RelDyn says yes but not wholeheartedly (unsure, or giving in): the model plays it
+                $prompt .= "\n" . $relDynOv['felt'];
             }
         }
 
