@@ -128,7 +128,7 @@ function aiagentNsfwRelDynRefuses($npcName)
 
 /**
  * Sharmat's own world rules that RelDyn does not read and that only ever restrict: an NPC married to someone else needs the affair
- * floor (NSFW_AFFAIR_MIN_AFFINITY, default Fond 56) before she or he may be intimate with the player. A RelDyn yes replaces the
+ * floor (NSFW_AFFAIR_MIN_AFFINITY, default Fond 56) before that NPC may be intimate with the player. A RelDyn yes replaces the
  * relationship-type grid and the affinity floors, not this. Returns the floor when it applies, else null.
  */
 function aiagentNsfwRelDynAffairFloor($npcName)
