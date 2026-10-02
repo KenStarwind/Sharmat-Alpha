@@ -72,7 +72,7 @@
                     <div style="display: flex; align-items: center; gap: 15px;">
                         <div style="margin: 0; padding: 0; min-width: 280px; color: #B8A8C8;">Cartesia climax voice speed</div>
                         <div class="slider-container" style="flex: 1;">
-                            <input type="range" id="cartesiaSpeedClimax" name="CARTESIA_SPEED_CLIMAX" min="0.1" max="1.2" step="0.05" value="0.6">
+                            <input type="range" id="cartesiaSpeedClimax" name="CARTESIA_SPEED_CLIMAX" min="0.6" max="1.2" step="0.05" value="0.6">
                             <span class="slider-value" id="cartesiaSpeedClimaxValue">0.6x</span>
                         </div>
                     </div>

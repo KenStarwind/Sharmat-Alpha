@@ -175,6 +175,135 @@ if (is_file($tts)) {
     checkSceneWiring(preg_match('/is_numeric\(\$speed\)\s*\?\s*max\(0\.6,\s*min\(1\.5/', $engine) === 1, 'and takes a number for the current models');
 }
 
+// ---------------------------------------------------------------- 5. the glue blocks themselves, run as written
+
+// The real blocks out of preprocessing.php and prerequest.php (from the marker's next `if (` to its closing brace), executed
+// against stubs: these have no other test, and a misspelt variable in them would only show in the game.
+function extractSceneBlock($file, $marker)
+{
+    $src = (string)file_get_contents($file);
+    $at = strpos($src, $marker);
+    if ($at === false) { return null; }
+    $start = strpos($src, 'if (', $at);
+    if ($start === false) { return null; }
+    $open = strpos($src, '{', $start);
+    $depth = 0;
+    for ($i = $open, $n = strlen($src); $i < $n; $i++) {
+        if ($src[$i] === '{') { $depth++; }
+        elseif ($src[$i] === '}') { $depth--; if ($depth === 0) { return substr($src, $start, $i - $start + 1); } }
+    }
+    return null;
+}
+ini_set('error_log', sys_get_temp_dir() . '/scene_awareness_wiring_test.log');
+
+// 5a. the hub block (preprocessing.php)
+$hubBlock = extractSceneBlock(dirname(__DIR__) . '/preprocessing.php', 'HUB SCENES (LOCAL');
+checkSceneWiring($hubBlock !== null, 'the hub block is found in preprocessing.php');
+$GLOBALS['fx_scene_active'] = true;
+function aiagentNsfwIsSceneActiveForPreprocess($timeoutSeconds = 300) { return $GLOBALS['fx_scene_active']; }
+$runHub = function ($payload, $active) use ($hubBlock) {
+    $GLOBALS['fx_scene_active'] = $active;
+    $GLOBALS['gameRequest'] = ['ext_nsfw_sexcene', '1', '2', $payload];
+    $currentEvent = 'ext_nsfw_sexcene';
+    eval($hubBlock);
+    return [$GLOBALS['gameRequest'][0], $currentEvent];
+};
+sameSceneWiring(['nsfw_blocked_hub', 'nsfw_blocked_hub'], $runHub('AnubsFfmPack/idle/AnubsFfmPack_A1/Kaida^dom/Aela^sub', true), 'a pack node mid-scene is dropped');
+sameSceneWiring(['nsfw_blocked_hub', 'nsfw_blocked_hub'], $runHub('Whatever/idle,hub/Stage/Kaida/Aela', true), 'a hub tag mid-scene is dropped');
+sameSceneWiring(['nsfw_blocked_hub', 'nsfw_blocked_hub'], $runHub('OStim2PUndressingHub0MF/idle/OStim2PUndressingHub0MF/Kaida/Aela', true), 'a hub with the pairing letters is dropped');
+sameSceneWiring(['ext_nsfw_sexcene', 'ext_nsfw_sexcene'], $runHub('AnubsFfmPack/idle/AnubsFfmPack_A1/Kaida^dom/Aela^sub', false), 'a hub that opens a scene is not dropped (the tier code makes it no scene cue)');
+sameSceneWiring(['ext_nsfw_sexcene', 'ext_nsfw_sexcene'], $runHub('OStim2PMissionaryMF/vaginalsex,missionary/OStim2PMissionaryMF_A1/Kaida^dom/Aela^sub', true), 'a real position mid-scene passes');
+sameSceneWiring(['ext_nsfw_sexcene', 'ext_nsfw_sexcene'], $runHub('', true), 'an empty payload passes to the other guards');
+
+// 5b. the vocal silence gate (prerequest.php)
+$silenceBlock = extractSceneBlock(dirname(__DIR__) . '/prerequest.php', 'VOCAL SILENCE (LOCAL');
+checkSceneWiring($silenceBlock !== null, 'the silence block is found in prerequest.php');
+require_once dirname(__DIR__) . '/reldyn_consent_policy.php';
+require_once dirname(__DIR__) . '/reldyn_vocal_policy.php';
+class NsfwData { public static $style = null; public static function getSpeakStyle($n) { return self::$style; } public static function getScene($id) { return null; } }
+$GLOBALS['fx_settings'] = [];
+function _getNsfwSetting($key, $default = null) { return array_key_exists($key, $GLOBALS['fx_settings']) ? $GLOBALS['fx_settings'][$key] : $default; }
+$runSilence = function ($event, $intimacy, $styleChance, $stopAlready = false, $settings = []) use ($silenceBlock) {
+    $GLOBALS['fx_settings'] = $settings;
+    unset($GLOBALS['AIAGENTNSFW_FORCE_STOP']);
+    if ($stopAlready) { $GLOBALS['AIAGENTNSFW_FORCE_STOP'] = true; }
+    $GLOBALS['HERIKA_NAME'] = 'Glue Test NPC ' . getmypid();
+    $GLOBALS['gameRequest'] = [$event, '1', '2', 'x'];
+    NsfwData::$style = ['name' => 'reserved', 'silence_chance' => $styleChance];
+    $extended_data = ['sex_speech_style' => 'reserved'];
+    $aiagentNsfwPreSceneEventName = $event;
+    $intimacyStatus = $intimacy;
+    $isSlave = false;
+    $isProstitute = false;
+    $streak = sys_get_temp_dir() . '/nsfw_vocal_streak_' . md5(strtolower($GLOBALS['HERIKA_NAME'])) . '.txt';
+    @unlink($streak);
+    eval($silenceBlock);
+    @unlink($streak);
+    return !empty($GLOBALS['AIAGENTNSFW_FORCE_STOP']);
+};
+$scene = ['scene_phase' => 'engaged', 'intensity_tier' => 3, 'accepted_sex' => true];
+$quiet = 0;
+for ($i = 0; $i < 200; $i++) { if ($runSilence('ext_nsfw_sexcene', $scene, 0.92)) { $quiet++; } }
+checkSceneWiring($quiet > 150 && $quiet < 200, "the silence gate silences most beats of a very quiet style and not all: {$quiet} of 200");
+$quiet = 0;
+for ($i = 0; $i < 200; $i++) { if ($runSilence('ext_nsfw_sexcene', $scene, null)) { $quiet++; } }
+sameSceneWiring(0, $quiet, 'a style with no chance and no RelDyn never silences');
+sameSceneWiring(false, $runSilence('ext_nsfw_orgasm', $scene, 0.92), 'an orgasm beat is never silenced');
+sameSceneWiring(false, $runSilence('ext_nsfw_sexcene', array_replace($scene, ['scene_phase' => 'tier_prompt']), 0.92), 'the accept or refuse turn is never silenced');
+sameSceneWiring(true, $runSilence('ext_nsfw_sexcene', array_replace($scene, ['scene_phase' => 'tier_prompt']), 0.92, true), 'an already-stopped turn stays stopped');
+$quiet = 0;
+for ($i = 0; $i < 100; $i++) { if ($runSilence('ext_nsfw_sexcene', $scene, 0.92, false, ['NSFW_VOCAL_SILENCE' => false])) { $quiet++; } }
+sameSceneWiring(0, $quiet, 'with Let Quiet NPCs Stay Quiet unchecked nothing is silenced');
+
+// 5c. the Cartesia block (prerequest.php)
+$cartesiaBlock = extractSceneBlock(dirname(__DIR__) . '/prerequest.php', 'CARTESIA SCENE VOICE SPEED (LOCAL');
+checkSceneWiring($cartesiaBlock !== null, 'the Cartesia block is found in prerequest.php');
+$GLOBALS['fx_gating'] = true;
+function isSexDisposalEnabled() { return $GLOBALS['fx_gating']; }
+$runCartesia = function ($driver, $event, $level, $sceneEvent, $gating, $settings = [], $npc = 'Nobody') use ($cartesiaBlock) {
+    $GLOBALS['fx_gating'] = $gating;
+    $GLOBALS['TTSFUNCTION'] = $driver;
+    $GLOBALS['TTS'] = ['CARTESIA' => ['API_KEY' => 'k', 'model_id' => 'sonic-3.5', 'speed' => 'normal']];
+    $GLOBALS['HERIKA_NAME'] = $npc;
+    $GLOBALS['gameRequest'] = [$event, '1', '2', 'x'];
+    $aiagentNsfwPreSceneEventName = $event;
+    $intimacyStatus = ['level' => $level];
+    $isSceneEvent = $sceneEvent;
+    $xttsSettings = $settings;
+    eval($cartesiaBlock);
+    return $GLOBALS['TTS']['CARTESIA']['speed'];
+};
+sameSceneWiring(0.7, $runCartesia('cartesia', 'ext_nsfw_sexcene', 2, true, true), 'in the scene: 0.7');
+sameSceneWiring(0.8, $runCartesia('cartesia', 'ext_nsfw_sexcene', 1, true, true), 'foreplay: 0.8');
+sameSceneWiring(0.6, $runCartesia('cartesia', 'ext_nsfw_orgasm', 2, true, true), 'an orgasm: 0.6');
+sameSceneWiring('normal', $runCartesia('cartesia', 'inputtext', 0, false, true), 'outside a scene the connector speed stands');
+sameSceneWiring('normal', $runCartesia('xtts-fastapi', 'ext_nsfw_sexcene', 2, true, true), 'another engine is left alone');
+sameSceneWiring('normal', $runCartesia('cartesia', 'ext_nsfw_sexcene', 2, true, true, ['XTTS_MODIFY_LEVEL2' => false]), 'the TTS modifier switch off: the voice is left alone');
+sameSceneWiring(0.65, $runCartesia('cartesia', 'ext_nsfw_sexcene', 2, true, true, ['XTTS_SPEED_LEVEL2' => 0.65]), 'the configured speed');
+sameSceneWiring(0.65, $runCartesia('cartesia', 'ext_nsfw_orgasm', 2, true, true, ['CARTESIA_SPEED_CLIMAX' => 0.65]), 'the configured climax speed');
+sameSceneWiring(0.6, $runCartesia('cartesia', 'ext_nsfw_orgasm', 2, true, true, ['CARTESIA_SPEED_CLIMAX' => 0.3]), 'a speed below what Cartesia takes is held at 0.6');
+sameSceneWiring(0.7, $runCartesia('cartesia', 'chatnf_sl', 0, true, false), 'arousal gating off: a scene event is in the scene');
+// per NPC, with RelDyn's pace
+eval('class RelationshipDynamics {}');
+$GLOBALS['db'] = new class {
+    public $vocal = [];
+    public function escape($s) { return $s; }
+    public function fetchOne($sql)
+    {
+        if (preg_match("/lower\\('([^']*)'\\)/", $sql, $m) && isset($this->vocal[strtolower($m[1])])) { return ['vocal' => $this->vocal[strtolower($m[1])]]; }
+        return [];
+    }
+};
+$GLOBALS['db']->vocal = [
+    'ashe' => '{"v":1,"enabled":true,"style":"minimal","silence_chance":0.62,"pace":0.95,"felt":"Ashe says little in bed.","gamets":1}',
+    'muiri' => '{"v":1,"enabled":true,"style":"sharp","silence_chance":0.37,"pace":1.03,"felt":"Muiri is sharp in bed.","gamets":1}',
+];
+aiagentNsfwRelDynConsentReset();
+aiagentNsfwRelDynVocalReset();
+sameSceneWiring(0.665, $runCartesia('cartesia', 'ext_nsfw_sexcene', 2, true, true, [], 'Ashe'), 'Ashe speaks a touch slower in the scene');
+sameSceneWiring(0.721, $runCartesia('cartesia', 'ext_nsfw_sexcene', 2, true, true, [], 'Muiri'), 'Muiri a touch quicker: the same scene, a different voice per NPC');
+sameSceneWiring(0.7, $runCartesia('cartesia', 'ext_nsfw_sexcene', 2, true, true, [], 'Someone Else'), 'an NPC RelDyn published nothing for: the plain speed');
+
 if ($failures) {
     fwrite(STDERR, "Scene awareness wiring tests FAILED (" . count($failures) . " of {$assertions}):\n - " . implode("\n - ", $failures) . "\n");
     exit(1);
