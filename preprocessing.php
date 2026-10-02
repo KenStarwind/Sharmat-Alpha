@@ -56,6 +56,7 @@ $GLOBALS["external_fast_commands"][]="nsfw_blocked_duplicate";
 $GLOBALS["external_fast_commands"][]="nsfw_blocked_scene_ended";
 $GLOBALS["external_fast_commands"][]="nsfw_blocked_policy";
 $GLOBALS["external_fast_commands"][]="nsfw_blocked_blank_input";
+$GLOBALS["external_fast_commands"][]="nsfw_blocked_hub";      // OStim hub / transition node mid-scene: not a position (LOCAL, branch reldyn-scenes)
 
 
 require_once(__DIR__."/common.php");
@@ -1700,6 +1701,21 @@ if (isset($GLOBALS["gameRequest"])) {
     if ($currentEvent === 'info_sexscene' || $GLOBALS["gameRequest"][0] === 'info_sexscene') {
         $GLOBALS["gameRequest"][0] = "ext_nsfw_sexcene";
         $currentEvent = "ext_nsfw_sexcene";
+    }
+
+    // HUB SCENES (LOCAL, branch reldyn-scenes): OStim's hub and pack nodes (ids ending in Hub or Pack) are waiting and
+    // navigation nodes, not positions. Mid-scene they would overwrite the real position with a waiting pose and trigger an
+    // "intimate moment" line, so they are dropped as a silent fast command and the scene keeps the last real position.
+    // A hub that opens a scene (nothing active yet) passes through: the tier code treats it as no scene cue.
+    if ($currentEvent === 'ext_nsfw_sexcene' && function_exists('aiagentNsfwParseSceneEventHead')) {
+        $hubHead = aiagentNsfwParseSceneEventHead($GLOBALS["gameRequest"][3] ?? '');
+        if ($hubHead !== null
+            && aiagentNsfwIsHubScene($hubHead['scene'], $hubHead['stage'], $hubHead['tags'])
+            && aiagentNsfwIsSceneActiveForPreprocess()) {
+            $GLOBALS["gameRequest"][0] = "nsfw_blocked_hub";
+            $currentEvent = "nsfw_blocked_hub";
+            error_log("[AIAGENTNSFW] Suppressed hub/transition scene mid-scene: {$hubHead['scene']}");
+        }
     }
 
     // OStim scene changes are normally routed through The Narrator/Character.

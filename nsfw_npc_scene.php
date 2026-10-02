@@ -503,7 +503,7 @@ class NsfwNpcScene {
         }
 
         // Build scene context message
-        $sceneContext = self::buildSceneContext($npc1Name, $npc2Name, $sceneID, $actorList);
+        $sceneContext = self::buildSceneContext($npc1Name, $npc2Name, $sceneID, $actorList, $actorRoles);
 
         return [
             'threadID' => $threadID,
@@ -599,14 +599,20 @@ class NsfwNpcScene {
     /**
      * Build scene context message for NPCs
      */
-    private static function buildSceneContext($npc1Name, $npc2Name, $sceneID, $actorList = []) {
+    private static function buildSceneContext($npc1Name, $npc2Name, $sceneID, $actorList = [], $actorRoles = []) {
         $actorList = self::cleanActorList($actorList);
         if (empty($actorList)) {
             $actorList = [$npc1Name, $npc2Name];
         }
         $sceneDesc = "";
         if (!empty($sceneID) && function_exists('getSceneDescription')) {
-            $sceneDesc = trim((string)getSceneDescription($sceneID, $actorList));
+            // The roles OStim reports per actor (dom, vaginal, cowgirl...) are tags too: a scene the import lacks is described
+            // from them (LOCAL, branch reldyn-scenes)
+            $roleTags = [];
+            foreach ((array)$actorRoles as $roles) {
+                foreach ((array)$roles as $role) { $roleTags[] = strtolower(trim((string)$role)); }
+            }
+            $sceneDesc = trim((string)getSceneDescription($sceneID, $actorList, array_values(array_unique($roleTags)), false));
         }
         if ($sceneDesc === '' && !empty($sceneID)) {
             // OStim scene IDs often contain readable tags when no lookup exists yet.

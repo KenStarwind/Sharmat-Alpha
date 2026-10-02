@@ -743,6 +743,8 @@ SQL;
                 'BLOCK_RECHAT_TIMEOUT' => 300,  // Seconds after scene start before rechat resumes
                 'PLAYER_SCENE_RECHAT_CADENCE_SECONDS' => 0,  // 0 = hard-block rechat in player scenes; >0 = one scene-cued line per interval
                 'NSFW_SCENE_SPEAK_ON_SCENE_CHANGE' => true,  // Beat-driven line on scene/position changes (state always processed)
+                'CARTESIA_SPEED_CLIMAX' => 0.6,  // Cartesia voice speed on an orgasm beat (LOCAL, branch reldyn-scenes)
+                'NSFW_VOCAL_SILENCE' => true,  // A speak style's silence_chance / RelDyn's vocal style may leave a scene beat unspoken (LOCAL)
                 'NSFW_SCENE_SPEAK_ON_ORGASM' => true,  // Spoken climax reactions (orgasm state always processed)
                 'DETECT_OSTIM_SCENES' => true,  // Listen to OStim scene/orgasm events
                 'DETECT_SEXLAB_SCENES' => true,  // Listen to SexLab scene/orgasm events
@@ -1124,6 +1126,8 @@ SQL;
                 'XTTS_MODIFY_LEVEL2' => isset($_POST['XTTS_MODIFY_LEVEL2']) ? filter_var($_POST['XTTS_MODIFY_LEVEL2'], FILTER_VALIDATE_BOOLEAN) : false,
                 'XTTS_SPEED_LEVEL1' => isset($_POST['XTTS_SPEED_LEVEL1']) ? floatval($_POST['XTTS_SPEED_LEVEL1']) : 0.8,
                 'XTTS_SPEED_LEVEL2' => isset($_POST['XTTS_SPEED_LEVEL2']) ? floatval($_POST['XTTS_SPEED_LEVEL2']) : 0.7,
+                'CARTESIA_SPEED_CLIMAX' => isset($_POST['CARTESIA_SPEED_CLIMAX']) ? max(0.1, min(1.5, floatval($_POST['CARTESIA_SPEED_CLIMAX']))) : 0.6,
+                'NSFW_VOCAL_SILENCE' => isset($_POST['NSFW_VOCAL_SILENCE']) ? filter_var($_POST['NSFW_VOCAL_SILENCE'], FILTER_VALIDATE_BOOLEAN) : true,
                 'ENABLE_RANDOM_MOANS' => isset($_POST['ENABLE_RANDOM_MOANS']) ? filter_var($_POST['ENABLE_RANDOM_MOANS'], FILTER_VALIDATE_BOOLEAN) : true,
                 'MOANS_AFFINITY_THRESHOLD' => isset($_POST['MOANS_AFFINITY_THRESHOLD']) ? intval($_POST['MOANS_AFFINITY_THRESHOLD']) : 6,
                 'RANDOM_MOAN_SOUNDS' => $_POST['RANDOM_MOAN_SOUNDS'] ?? " ... oh ...\n ... ah ...\n ... mmm ...\n ... ooh ...\n ... yes ... ",
@@ -2283,6 +2287,7 @@ SQL;
                 'climax_prompt' => $style['climax_prompt'] ?? '',
                 'partner_climax_prompt' => $style['partner_climax_prompt'] ?? '',
                 'pillow_talk_prompt' => $style['pillow_talk_prompt'] ?? '',
+                'silence_chance' => (isset($style['silence_chance']) && is_numeric($style['silence_chance'])) ? (float)$style['silence_chance'] : null,
             ]);
         } catch (Exception $e) {
             echo json_encode([
@@ -2304,6 +2309,9 @@ SQL;
             $climaxPrompt = $_POST['climax_prompt'] ?? '';
             $partnerClimaxPrompt = $_POST['partner_climax_prompt'] ?? '';
             $pillowTalkPrompt = $_POST['pillow_talk_prompt'] ?? '';
+            // LOCAL (branch reldyn-scenes): chance (percent in the form) that a scene beat of this style goes unspoken; blank = none
+            $silenceChancePct = trim((string)($_POST['silence_chance'] ?? ''));
+            $silenceChance = is_numeric($silenceChancePct) ? max(0.0, min(90.0, (float)$silenceChancePct)) / 100.0 : null;
 
             if (empty($styleName)) {
                 throw new Exception('Style name is required');
@@ -2338,6 +2346,7 @@ SQL;
                 'partner_climax_prompt' => $partnerClimaxPrompt,
                 'pillow_talk_prompt' => $pillowTalkPrompt
             ];
+            if ($silenceChance !== null && $silenceChance > 0.0) { $styleEntry['silence_chance'] = round($silenceChance, 4); }
             $allStyles[$styleName] = $styleEntry;
 
             // Save to JSONB
@@ -7314,6 +7323,14 @@ PROMPT;
                 });
             }
 
+            // Cartesia climax speed slider
+            const speedSliderClimax = document.getElementById('cartesiaSpeedClimax');
+            if (speedSliderClimax) {
+                speedSliderClimax.addEventListener('input', function() {
+                    document.getElementById('cartesiaSpeedClimaxValue').textContent = this.value + 'x';
+                });
+            }
+
             const blockRechatSlider = document.getElementById('blockRechatTimeout');
             if (blockRechatSlider) {
                 blockRechatSlider.addEventListener('input', function() {
@@ -7432,6 +7449,12 @@ PROMPT;
                         elSet('xttsSpeedLevel1Value', 'textContent', speedLevel1 + 'x');
                         elSet('xttsSpeedLevel2', 'value', speedLevel2);
                         elSet('xttsSpeedLevel2Value', 'textContent', speedLevel2 + 'x');
+                        const speedClimax = data.data.CARTESIA_SPEED_CLIMAX !== undefined ? data.data.CARTESIA_SPEED_CLIMAX : 0.6;
+                        if (document.getElementById('cartesiaSpeedClimax')) {
+                            elSet('cartesiaSpeedClimax', 'value', speedClimax);
+                            elSet('cartesiaSpeedClimaxValue', 'textContent', speedClimax + 'x');
+                        }
+                        if (document.getElementById('vocalSilence')) elSet('vocalSilence', 'checked', data.data.NSFW_VOCAL_SILENCE !== false);  // Default true
                         // Load random moans settings
                         elSet('enableRandomMoans', 'checked', data.data.ENABLE_RANDOM_MOANS !== false);  // Default true
                         elSet('moansAffinityThreshold', 'value', data.data.MOANS_AFFINITY_THRESHOLD !== undefined ? data.data.MOANS_AFFINITY_THRESHOLD : '6');
@@ -7837,6 +7860,8 @@ PROMPT;
             fdSet('XTTS_MODIFY_LEVEL2', 'xttsModifyLevel2', 'checked');
             fdSet('XTTS_SPEED_LEVEL1', 'xttsSpeedLevel1', 'value');
             fdSet('XTTS_SPEED_LEVEL2', 'xttsSpeedLevel2', 'value');
+            if (document.getElementById('cartesiaSpeedClimax')) fdSet('CARTESIA_SPEED_CLIMAX', 'cartesiaSpeedClimax', 'value');
+            if (document.getElementById('vocalSilence')) fdSet('NSFW_VOCAL_SILENCE', 'vocalSilence', 'checked');
             // Random moans settings
             fdSet('ENABLE_RANDOM_MOANS', 'enableRandomMoans', 'checked');
             fdSet('MOANS_AFFINITY_THRESHOLD', 'moansAffinityThreshold', 'value');
@@ -9894,6 +9919,7 @@ PROMPT;
         document.getElementById('modalClimaxPrompt').value = '';
         document.getElementById('modalPartnerClimaxPrompt').value = '';
         document.getElementById('modalPillowTalkPrompt').value = '';
+        document.getElementById('modalSilenceChance').value = '';
 
         // Collapse advanced section
         document.getElementById('advancedPromptsContent').classList.remove('expanded');
@@ -10543,6 +10569,7 @@ PROMPT;
                     document.getElementById('modalClimaxPrompt').value = data.climax_prompt || '';
                     document.getElementById('modalPartnerClimaxPrompt').value = data.partner_climax_prompt || '';
                     document.getElementById('modalPillowTalkPrompt').value = data.pillow_talk_prompt || '';
+                    document.getElementById('modalSilenceChance').value = (data.silence_chance !== null && data.silence_chance !== undefined && data.silence_chance !== '') ? Math.round(data.silence_chance * 100) : '';
                 }
             });
 
@@ -10615,6 +10642,7 @@ PROMPT;
         const climaxPrompt = document.getElementById('modalClimaxPrompt').value.trim();
         const partnerClimaxPrompt = document.getElementById('modalPartnerClimaxPrompt').value.trim();
         const pillowTalkPrompt = document.getElementById('modalPillowTalkPrompt').value.trim();
+        const silenceChance = document.getElementById('modalSilenceChance').value.trim();
 
         if (!label) {
             alert('Label is required');
@@ -10639,6 +10667,7 @@ PROMPT;
         formData.append('climax_prompt', climaxPrompt);
         formData.append('partner_climax_prompt', partnerClimaxPrompt);
         formData.append('pillow_talk_prompt', pillowTalkPrompt);
+        formData.append('silence_chance', silenceChance);
 
         showProcessing();
         fetch('?action=saveGlobalStyle', {
@@ -12784,6 +12813,11 @@ Your feelings toward these clients affect your pricing and enthusiasm. Favorable
                         <div class="form-group">
                             <label>Pillow Talk Prompt</label>
                             <textarea id="modalPillowTalkPrompt" placeholder="How this style talks after the scene with #PRIMARY_PARTNER#..." autocomplete="off"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Chance to stay quiet on a scene beat (percent, 0-90, blank = always speak)</label>
+                            <input type="number" id="modalSilenceChance" min="0" max="90" step="5" placeholder="e.g. 70 for a reserved style" autocomplete="off">
+                            <p class="legend">A reserved style can leave most position-change beats unspoken (the game's own moans and breaths still play). RelDyn adds its own reading of who the NPC is, when it is installed.</p>
                         </div>
                     </div>
                 </div>

@@ -2727,6 +2727,16 @@ if ($shouldInjectEngagedContent) {
         error_log("[AIAGENTNSFW] DEBUG: NPC {$GLOBALS["HERIKA_NAME"]} has no configured sex_speech_style - using defaults");
     }
 
+    // RELDYN VOCAL STYLE (LOCAL, branch reldyn-scenes): who the NPC is decides how they sound in bed (RelDyn's reading: bold and
+    // vocal, soft and close, few words, reassurance-seeking, sharp). One line, the NPC's name and no pronoun. Nothing without RelDyn.
+    if ($speakStyleTier3 && !$isSlave && !$isProstitute && empty($GLOBALS["AIAGENTNSFW_STANDING_ONLY"]) && function_exists('aiagentNsfwRelDynVocalLine')) {
+        $relDynVocalLine = aiagentNsfwRelDynVocalLine($actorName);
+        if ($relDynVocalLine !== '') {
+            $GLOBALS["HERIKA_PERSONALITY"] .= "\n" . NsfwRelationship::wrapXml('vocal_style', $relDynVocalLine);
+            error_log("[AIAGENTNSFW] Injected RelDyn vocal style line for {$GLOBALS["HERIKA_NAME"]}");
+        }
+    }
+
     // HARD STATE MACHINE (user directive 2026-06-29): in a PLAYER decision phase (tier 3, undecided, not refusing),
     // the speak-style + climax overrides must NOT be present - only the dumb accept/refuse cue (TIER_CUE_OVERRIDE,
     // which already wins for ext_nsfw_sexcene). Strip them so no sex-style cue can leak before she chooses. The
@@ -2860,6 +2870,43 @@ if (isset($extended_data["fertility_recent_birth"])) {
 error_log("[AIAGENTNSFW ] updateIntimacyForActor({$GLOBALS["HERIKA_NAME"]})".json_encode($intimacyStatus));
 updateIntimacyForActor($GLOBALS["HERIKA_NAME"],$intimacyStatus);        
 
+// ============================================
+// VOCAL SILENCE (LOCAL, branch reldyn-scenes)
+// ============================================
+// How much an NPC talks in bed is who the NPC is: a speak style can carry a chance to stay quiet, and RelDyn (when installed)
+// reads each NPC (guarded and restrained: little; bold and expressive: a lot; hurt or pulled back: less; deeply let in and
+// aroused: more). A beat that goes quiet updates all the scene state above and only stops the model's line (the game's own
+// moans and breaths still play). Only position-change / talk-trigger beats of an accepted explicit scene: never the
+// accept/refuse turn, a refusal, an orgasm or a moan event, and never more than a few beats in a row.
+// ============================================
+if (empty($GLOBALS["AIAGENTNSFW_FORCE_STOP"]) && function_exists('aiagentNsfwVocalSilenceGate') && _getNsfwSetting('NSFW_VOCAL_SILENCE', true)) {
+    $vocalNpc = (string)($GLOBALS["HERIKA_NAME"] ?? '');
+    $vocalStyleChance = null;
+    if ($vocalNpc !== '' && !empty($extended_data["sex_speech_style"]) && $extended_data["sex_speech_style"] !== 'auto' && class_exists('NsfwData')) {
+        $vocalStyleRow = NsfwData::getSpeakStyle($extended_data["sex_speech_style"]);
+        $vocalStyleChance = is_array($vocalStyleRow) ? ($vocalStyleRow['silence_chance'] ?? null) : null;
+    }
+    $vocalGate = aiagentNsfwVocalSilenceGate(
+        $vocalNpc,
+        (string)($aiagentNsfwPreSceneEventName ?? ($GLOBALS["gameRequest"][0] ?? '')),
+        is_array($intimacyStatus) ? $intimacyStatus : [],
+        !empty($isSlave),
+        !empty($isProstitute),
+        $vocalStyleChance,
+        null,
+        sys_get_temp_dir() . "/nsfw_vocal_streak_" . md5(strtolower($vocalNpc)) . ".txt",
+        (int)_getNsfwSetting('NSFW_VOCAL_MAX_SILENT_BEATS', 8)
+    );
+    if ($vocalGate !== null) {
+        if ($vocalGate['silent']) {
+            $GLOBALS["AIAGENTNSFW_FORCE_STOP"] = true;
+            error_log("[AIAGENTNSFW] Vocal silence for {$vocalNpc}: beat left unspoken (chance {$vocalGate['chance']}, silent beats in a row {$vocalGate['streak']})");
+        } else {
+            error_log("[AIAGENTNSFW] Vocal gate for {$vocalNpc}: speaks (chance to be quiet {$vocalGate['chance']}" . (!empty($vocalGate['forced']) ? ', spoke after a long quiet stretch' : '') . ")");
+        }
+    }
+}
+
 // Add hook  to XTTS to insert some oh's and ah's into the speech.
 // Also will change XTTS settings
 // If level 2 -> Intimate scene, NPC should talk slower, and we add some random gasps.
@@ -2992,6 +3039,33 @@ if ($xttsInForeplay && $xttsLevel1Enabled) {
     };
 } else if ($xttsInForeplay && !$xttsLevel1Enabled) {
     error_log("[AIAGENTNSFW] XTTS hook (foreplay) DISABLED by settings");
+}
+
+// ============================================
+// CARTESIA SCENE VOICE SPEED (LOCAL, branch reldyn-scenes)
+// ============================================
+// The XTTS-style hooks above never reach Cartesia, whose speed is its own setting (and a number or a word by model). So
+// for this NPC's turn, set Cartesia's speed by the NPC's own scene phase: foreplay 0.8, sex 0.7, climax 0.6 (the settings'
+// values), a little off by the NPC's own pace when RelDyn publishes a vocal style. Per request, so per NPC. Outside a scene
+// the connector's own speed stands.
+// ============================================
+if (strtolower((string)($GLOBALS["TTSFUNCTION"] ?? '')) === 'cartesia' && function_exists('aiagentNsfwApplyCartesiaSceneSpeed')) {
+    $cartesiaVoiceEvent = (string)($aiagentNsfwPreSceneEventName ?? ($GLOBALS["gameRequest"][0] ?? ''));
+    $cartesiaPhase = aiagentNsfwSceneVoicePhase(
+        $cartesiaVoiceEvent,
+        $intimacyStatus["level"] ?? 0,
+        isSexDisposalEnabled(),
+        $isSceneEvent
+    );
+    if ($cartesiaPhase !== null) {
+        $cartesiaNpc = (string)($GLOBALS["HERIKA_NAME"] ?? '');
+        $cartesiaPace = function_exists('aiagentNsfwRelDynVocalPace') ? aiagentNsfwRelDynVocalPace($cartesiaNpc) : 1.0;
+        $cartesiaSettings = (isset($xttsSettings) && is_array($xttsSettings)) ? $xttsSettings : [];
+        $cartesiaSpeed = aiagentNsfwApplyCartesiaSceneSpeed($cartesiaPhase, $cartesiaSettings, $cartesiaPace);
+        if ($cartesiaSpeed !== null) {
+            error_log("[AIAGENTNSFW] Cartesia scene voice for {$cartesiaNpc}: phase={$cartesiaPhase}, speed=" . var_export($cartesiaSpeed, true) . ", pace={$cartesiaPace}");
+        }
+    }
 }
 
 // ============================================

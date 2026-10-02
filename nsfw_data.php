@@ -801,7 +801,10 @@ class NsfwData {
                         'masturbation_prompt' => $styleData['masturbation_prompt'] ?? '',
                         'climax_prompt' => $styleData['climax_prompt'] ?? '',
                         'partner_climax_prompt' => $styleData['partner_climax_prompt'] ?? '',
-                        'pillow_talk_prompt' => $styleData['pillow_talk_prompt'] ?? ''
+                        'pillow_talk_prompt' => $styleData['pillow_talk_prompt'] ?? '',
+                        // LOCAL (branch reldyn-scenes): chance 0..1 that a scene beat of this style goes unspoken; null = none set
+                        'silence_chance' => (isset($styleData['silence_chance']) && is_numeric($styleData['silence_chance']))
+                            ? max(0.0, min(1.0, (float)$styleData['silence_chance'])) : null
                     ];
                 }
             }
@@ -1397,6 +1400,8 @@ function nsfw_default_settings_config() {
         'XTTS_MODIFY_LEVEL2' => false,
         'XTTS_SPEED_LEVEL1' => 0.8,
         'XTTS_SPEED_LEVEL2' => 0.7,
+        'CARTESIA_SPEED_CLIMAX' => 0.6,      // LOCAL (branch reldyn-scenes): Cartesia voice speed on an orgasm beat
+        'NSFW_VOCAL_SILENCE' => true,        // LOCAL: a speak style's silence_chance / RelDyn's vocal style may leave a scene beat unspoken
         'ENABLE_RANDOM_MOANS' => true,
         'MOANS_AFFINITY_THRESHOLD' => 6,
         'RANDOM_MOAN_SOUNDS' => " ... oh ...\n ... ah ...\n ... mmm ...\n ... ooh ...\n ... yes ... ",

@@ -981,7 +981,7 @@ class NsfwOstimHandler {
 
         // Fill descriptions - DUAL LOOKUP: SQL first (user custom), then OStim JSON (automatic)
         $sceneActorSlots = !empty($rawActorList) ? $rawActorList : $orderedActorList;
-        $cleanedSceneDesc = getSceneDescription($sexStageName, $sceneActorSlots);
+        $cleanedSceneDesc = getSceneDescription($sexStageName, $sceneActorSlots, $sexTags);   // tags: a scene the import lacks is described from them (LOCAL, branch reldyn-scenes)
 
         // Legacy fallback if scene_lookup.php fails
         if (empty($cleanedSceneDesc)) {

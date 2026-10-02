@@ -68,6 +68,17 @@
                     <p class="legend">This is the Level 2 control required by Random Moans. It applies the selected action-scene voice speed and enables moan/gasp insertion below. Lower speed = slower and breathier. Default: 0.7x.</p>
                 </div>
 
+                <div class="settings-slider-group">
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <div style="margin: 0; padding: 0; min-width: 280px; color: #B8A8C8;">Cartesia climax voice speed</div>
+                        <div class="slider-container" style="flex: 1;">
+                            <input type="range" id="cartesiaSpeedClimax" name="CARTESIA_SPEED_CLIMAX" min="0.1" max="1.2" step="0.05" value="0.6">
+                            <span class="slider-value" id="cartesiaSpeedClimaxValue">0.6x</span>
+                        </div>
+                    </div>
+                    <p class="legend">With a Cartesia voice, the TTS Modifier levels above also set the voice speed (Cartesia takes 0.6x to 1.5x; older Cartesia models round to the nearest of slowest, slow, normal, fast, fastest). This one is the speed on an orgasm beat, and follows the Level 2 switch. Default: 0.6x.</p>
+                </div>
+
                 <div style="display: flex; align-items: center; gap: 15px; margin: 10px 0 5px 0;">
                     <div class="settings-checkbox-group" style="margin: 0; padding: 0; border: none;">
                         <label for="enableRandomMoans">
@@ -337,6 +348,14 @@
                         <span>Respond to Scene/Position Changes</span>
                     </label>
                     <p class="legend">When checked, your partner comments every time the scene position or animation changes. Uncheck if the AI feels too chatty during scenes: position changes then update the scene state silently, while scene starts (the consent decision turn), orgasm reactions, and the Player Scene Chatter Cadence below keep working normally.</p>
+                </div>
+
+                <div class="settings-checkbox-group">
+                    <label for="vocalSilence">
+                        <input type="checkbox" id="vocalSilence" name="NSFW_VOCAL_SILENCE" checked>
+                        <span>Let Quiet NPCs Stay Quiet</span>
+                    </label>
+                    <p class="legend">When checked, a speak style with a "chance to stay quiet" (and, when RelDyn is installed, each NPC's own vocal style: a guarded NPC says little, a bold one a lot) leaves some position-change beats unspoken. The game's own moans and breaths still play, the accept/refuse turn and orgasms always speak, and nobody stays silent for long. Uncheck to make every NPC answer every beat.</p>
                 </div>
 
                 <div class="settings-checkbox-group">

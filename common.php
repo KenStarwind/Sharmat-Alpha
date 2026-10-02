@@ -2,6 +2,8 @@
 
 require_once __DIR__ . "/open_mode_policy.php";  // Pure Open Mode state/prompt policy (unit-testable without CHIM bootstrap)
 require_once __DIR__ . "/scene_role_policy.php"; // Pure SexLab victim/aggressor role policy
+require_once __DIR__ . "/scene_awareness_policy.php"; // LOCAL (branch reldyn-scenes): pure tag-description, hub-scene and scene-voice-speed policy (unit-testable without CHIM)
+require_once __DIR__ . "/reldyn_vocal_policy.php"; // LOCAL (branch reldyn-scenes): RelDyn's per-NPC vocal style (silence chance, pace, a line about how the NPC sounds); inert without RelDyn
 require_once __DIR__ . "/reldyn_consent_policy.php"; // LOCAL (branch reldyn-consent): RelDyn's consent decision supersedes ours when RelDyn is installed; inert without it
 require_once __DIR__ . "/../../lib/chat_helper_functions.php";
 require_once __DIR__ . "/nsfw_data.php";  // NsfwNpcData class - MUST be loaded first (functions.php uses it on include)

@@ -100,6 +100,8 @@ function nsfwSceneIntensityTier($tags = [], $sceneName = '', $sceneId = null) {
     }
     $tagSet = array_map('strtolower', array_map('trim', (array)$tags));
     $name = strtolower((string)$sceneName);
+    // LOCAL (branch reldyn-scenes): a hub is a waiting node, not a position (see scene_awareness_policy.php): no scene cue
+    if (function_exists('aiagentNsfwIsHubScene') && aiagentNsfwIsHubScene($sceneId, $sceneName, $tagSet)) { return 0; }
     // Explicit ACT tags force tier 3 (exact match, OStim + SexLab vocab). Positions (standing/spooning/missionary/etc) are NOT here - ambiguous, handled below.
     $explicitTags = [
         'vaginalsex','analsex','doublepenetration','blowjob','deepthroat','facefuck','cunnilingus','analingus','sixtynine',
@@ -343,7 +345,7 @@ function logOstimScene($sceneId, $description, $source = 'JSONB') {
     file_put_contents($logFile, $logLine, FILE_APPEND | LOCK_EX);
 }
 
-function getSceneDescription($sceneId, $actorNames = []) {
+function getSceneDescription($sceneId, $actorNames = [], $sceneTags = [], $keepTagDescription = true) {
     // Instruction appended to all scene descriptions to prevent narration
     // Reads from user-configurable prompt setting
     $defaultInstruction = "(This scene is for context only. React emotionally to what's happening - don't describe or narrate the physical actions. Show, don't tell.)";
@@ -368,6 +370,20 @@ function getSceneDescription($sceneId, $actorNames = []) {
 
             $finalDesc = buildActorDescriptions($placeholderDesc, $actorNames);
             logOstimScene($sceneId, $finalDesc, 'JSON');
+            return $finalDesc . $sceneInstruction;
+        }
+    }
+
+    // 2.5 LOCAL (branch reldyn-scenes): the scene id was never imported (about half of what OStim sends), but its tags come
+    // with every event. Describe the scene from them before giving up to the generic line, and keep it for editing like the
+    // JSON path does. A scene whose tags name no act or position (idle, intro, transition) keeps the generic line.
+    if (!empty($sceneTags) && function_exists('aiagentNsfwSceneTagDescription')) {
+        $tagDesc = aiagentNsfwSceneTagDescription((array)$sceneTags, count($actorNames));
+        if ($tagDesc && !empty($tagDesc['specific'])) {
+            // kept for editing only when the tags are the scene's own; role tags (a guess from who does what) are not stored
+            if ($keepTagDescription) { autoInsertSceneDescription($sceneId, $tagDesc['template']); }
+            $finalDesc = buildActorDescriptions($tagDesc['template'], $actorNames);
+            logOstimScene($sceneId, $finalDesc, 'TAG');
             return $finalDesc . $sceneInstruction;
         }
     }
