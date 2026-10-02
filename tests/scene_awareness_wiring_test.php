@@ -161,6 +161,7 @@ checkSceneWiring(strpos($read('nsfw_ostim_handler.php'), 'getSceneDescription($s
 checkSceneWiring(strpos($read('nsfw_npc_scene.php'), 'getSceneDescription($sceneID, $actorList, array_values(array_unique($roleTags)), false)') !== false, 'the NPC scene path hands the role tags to the lookup');
 $pre = $read('preprocessing.php');
 checkSceneWiring(strpos($pre, '"nsfw_blocked_hub"') !== false && strpos($pre, 'external_fast_commands"][]="nsfw_blocked_hub"') !== false, 'the hub block is a registered silent fast command');
+checkSceneWiring(strpos($pre, "'nsfw_blocked_blank_input', 'nsfw_blocked_hub'])) {") !== false, 'and ends the request at once like the other blocked events');
 checkSceneWiring(strpos($pre, 'aiagentNsfwIsHubScene($hubHead[\'scene\']') !== false && strpos($pre, 'aiagentNsfwIsSceneActiveForPreprocess()') !== false, 'a hub is dropped only mid-scene');
 checkSceneWiring(strpos($pre, 'nsfw_blocked_hub') < strpos($pre, 'Scene dedup - OStim fires scene events repeatedly'), 'and before the scene dedup records it');
 $req = $read('prerequest.php');

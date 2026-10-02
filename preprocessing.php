@@ -2208,7 +2208,7 @@ if (isset($GLOBALS["gameRequest"])) {
     }
 
     // Blocked events terminate immediately - no LLM processing
-    if (in_array($GLOBALS["gameRequest"][0], ['nsfw_blocked_cooldown', 'nsfw_blocked_duplicate', 'nsfw_blocked_scene_ended', 'nsfw_blocked_policy', 'nsfw_blocked_blank_input'])) {
+    if (in_array($GLOBALS["gameRequest"][0], ['nsfw_blocked_cooldown', 'nsfw_blocked_duplicate', 'nsfw_blocked_scene_ended', 'nsfw_blocked_policy', 'nsfw_blocked_blank_input', 'nsfw_blocked_hub'])) {
         exit();
     }
 }
